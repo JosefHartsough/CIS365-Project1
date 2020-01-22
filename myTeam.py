@@ -15,9 +15,7 @@ from __future__ import print_function
 from captureAgents import CaptureAgent
 import distanceCalculator
 import random
-import time
-import util
-import sys
+import time, util, sys
 from game import Directions, Actions
 import game
 from util import nearestPoint
@@ -63,136 +61,52 @@ class BaseAgent(CaptureAgent):
         weights = self.getCostOfAttackParameter(gameState, action)
         return features * weights
 
-    def evaluateAttackParameters(self, gameState, action):
-        features = util.Counter()
-        successor = self.getSuccessor(gameState, action)
-        features['successorScore'] = self.getScore(successor)
-        return features
-
-    def getCostOfAttackParameter(self, gameState, action):
-        return {'successorScore': 1.0}
+    def getWeights(self, gameState, action):
+        return{'successorScore': 1.0}
 
 
 class DefensiveReflexAgent(BaseAgent):
     def __init__(self, index):
         CaptureAgent.__init__(self, index)
         self.target = None
-        self.previousFood = []
-        self.counter = 0
 
     def registerInitialState(self, gameState):
         CaptureAgent.registerInitialState(self, gameState)
         self.setPatrolPoint(gameState)
 
-    def setPatrolPoint(self, gameState):
+    def halfControl(self, gameState):
         '''
-        Look for center of the maze for patrolling
+        Gets the position for the center of the maze so it can
+        stand guard. Not sure really what the hell to do with it
+        after it is in the middle, but hey this is what I got so 
+        far
         '''
+        #Assigns the variable x to the location of the middle of 
+        #the grid. Uses function: halfGrid(grid, red) from capture.py
         x = (gameState.data.layout.width - 2) // 2
         if not self.red:
             x += 1
-        self.patrolPoints = []
-        for i in range(1, gameState.data.layout.height - 1):
-            if not gameState.hasWall(x, i):
-                self.patrolPoints.append((x, i))
+        self.patrolLocations = []                                                 #Array to hold locations to patrol
+        for i in range(1, gameState.data.layout.height - 1):            
+            if not gameState.hasWall(x, i):                                       #Checks if the location is a wall
+                self.patrolLocations.append((x, i))                               #Adds location if its not a wall
 
-        for i in range(len(self.patrolPoints)):
-            if len(self.patrolPoints) > 2:
-                self.patrolPoints.remove(self.patrolPoints[0])
-                self.patrolPoints.remove(self.patrolPoints[-1])
+        for i in range(len(self.patrolLocations)):
+            if len(self.patrolLocations) > 2:
+                self.patrolLocations.remove(self.patrolLocations[0])
+                self.patrolPoints.remove(self.patrolLocations[1])
             else:
                 break
+    #Actions for defensive movement
+    def defensiveMovement(self, gameState):
 
-    def getNextDefensiveMove(self, gameState):
+        defensiveAgentActions = []                                                 #Array to store the actions for our defense agent
+        actions = gameState.getLegalActions(self.index)                            #Gets the legal actions 
 
-        agentActions = []
-        actions = gameState.getLegalActions(self.index)
+        directionsReversed = Directions.REVERSE[gameState.getAgentState(           #Uses reverse directions from Directions class
+            self.index).configuration.direction]        
+        actions.remove(Directions.STOP)                                            #Removes the action stop so our agent never stops moving
 
-        rev_dir = Directions.REVERSE[gameState.getAgentState(
-            self.index).configuration.direction]
-        actions.remove(Directions.STOP)
+        return defensiveAgentActions
 
-        for i in range(0, len(actions)-1):
-            if rev_dir == actions[i]:
-                actions.remove(rev_dir)
-
-        for i in range(len(actions)):
-            a = actions[i]
-            new_state = gameState.generateSuccessor(self.index, a)
-            if not new_state.getAgentState(self.index).isPacman:
-                agentActions.append(a)
-
-        if len(agentActions) == 0:
-            self.counter = 0
-        else:
-            self.counter = self.counter + 1
-        if self.counter > 4 or self.counter == 0:
-            agentActions.append(rev_dir)
-
-        return agentActions
-
-    def chooseAction(self, gameState):
-
-        position = gameState.getAgentPosition(self.index)
-        if position == self.target:
-            self.target = None
-        invaders = []
-        nearestInvader = []
-        minDistance = float("inf")
-
-        # Look for enemy position in our home
-        opponentsPositions = self.getOpponents(gameState)
-        i = 0
-        while i != len(opponentsPositions):
-            opponentPos = opponentsPositions[i]
-            opponent = gameState.getAgentState(opponentPos)
-            if opponent.isPacman and opponent.getPosition() != None:
-                opponentPos = opponent.getPosition()
-                invaders.append(opponentPos)
-            i = i + 1
-
-        # if enemy is found chase it and kill it
-        if len(invaders) > 0:
-            for oppPosition in invaders:
-                dist = self.getMazeDistance(oppPosition, position)
-                if dist < minDistance:
-                    minDistance = dist
-                    nearestInvader.append(oppPosition)
-            self.target = nearestInvader[-1]
-
-        # if enemy has eaten some food, then remove it from targets
-        else:
-            if len(self.previousFood) > 0:
-                if len(self.getFoodYouAreDefending(gameState).asList()) < len(self.previousFood):
-                    yummy = set(self.previousFood) - \
-                        set(self.getFoodYouAreDefending(gameState).asList())
-                    self.target = yummy.pop()
-
-        self.previousFood = self.getFoodYouAreDefending(gameState).asList()
-
-        if self.target == None:
-            if len(self.getFoodYouAreDefending(gameState).asList()) <= 4:
-                highPriorityFood = self.getFoodYouAreDefending(
-                    gameState).asList() + self.getCapsulesYouAreDefending(gameState)
-                self.target = random.choice(highPriorityFood)
-            else:
-                self.target = random.choice(self.patrolPoints)
-        candAct = self.getNextDefensiveMove(gameState)
-        awsomeMoves = []
-        fvalues = []
-
-        i = 0
-
-        # find the best move
-        while i < len(candAct):
-            a = candAct[i]
-            nextState = gameState.generateSuccessor(self.index, a)
-            newpos = nextState.getAgentPosition(self.index)
-            awsomeMoves.append(a)
-            fvalues.append(self.getMazeDistance(newpos, self.target))
-            i = i + 1
-
-        best = min(fvalues)
-        bestActions = [a for a, v in zip(awsomeMoves, fvalues) if v == best]
-        bestAction = random.choice(bestActions)
-        return bestAction
+    
