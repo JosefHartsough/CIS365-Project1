@@ -14,14 +14,17 @@
 from __future__ import print_function
 from captureAgents import CaptureAgent
 import distanceCalculator
-import random , time, util, sys
+import random
+import time
+import util
+import sys
 from game import Directions, Actions
 import game
 from util import nearestPoint
 
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='DefenseAgent', second='DefenseAgent'):
+               first='DefensiveReflexAgent', second='DefensiveReflexAgent'):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -39,94 +42,157 @@ def createTeam(firstIndex, secondIndex, isRed,
     return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
 
-class DefenseAgent(CaptureAgent):
+class BaseAgent(CaptureAgent):
     """
-    A defense agent that takes score maximizing actions. The fetures and weights given prioritizes
-    defensive actions first.
+    A defense agent that stays in the middle of the map and tries to guard
+    against attackers. If an attacker is on our side, will attempt to try 
+    and catch opponent. 
     """
-
-    def registerInitialState(self, gameState):
-        """
-        This method handles the initial setup  of team and agent. Also gets details from the game such as
-        oppenents, food we need, and the food we are defending.
-        """
-
-        CaptureAgent.registerInitialState(self, gameState)
-        self.myAgents = CaptureAgent.getTeam(self, gameState)
-        self.enemyAgents = CaptureAgent.getOpponents(self, gameState)
-        self.myFoods = CaptureAgent.getFood(self, gameState).asList()                       #A list of the food we need
-        self.opFoods = CaptureAgent.getFoodYouAreDefending(self, gameState).asList()        #List of food that is ours(defending)
 
     def getSuccessor(self, gameState, action):
-        """
-        Finds the next successor which is a grid position (location tuple)
-        """
-        successor = gameState.generateSuccessor(self.index, action)
-        pos = successor.getAgentState(self.index).getPosition()
-        if pos != nearestPoint(pos):
-            # Only half a grid position was covered
-            return successor.generateSuccessor(self.index, action)
-        else:
-            return successor
+            successor = gameState.generateSuccessor(self.index, action)
+            pos = successor.getAgentState(self.index).getPosition()
+            if pos != nearestPoint(pos):
 
-    # Returns a counter of features for the state
-    def getFeatures(self, gameState, action):
-        features = util.Counter()
-        successor = self.getSuccessor(gameState, action)
+                return successor.generateSuccessor(self.index, action)
+            else:
+                return successor
 
-        myState = successor.getAgentState(self.index)
-        myPos = myState.getPosition()
-
-        # Computes whether we're on defense (1) or offense (0)
-        features['onDefense'] = 1
-        if myState.isPacman: features['onDefense'] = 0
-
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
-        features['numInvaders'] = len(invaders)
-        if len(invaders) > 0:
-            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
-            features['invaderDistance'] = min(dists)
-
-        if action == Directions.STOP: features['stop'] = 1
-        rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
-        if action == rev: features['reverse'] = 1
-
-        return features
-
-    # Returns a dictionary of features for the state
-    def getWeights(self, gameState, action):
-        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
-
-    # Computes a linear combination of features and feature weights
     def evaluate(self, gameState, action):
-        features = self.getFeatures(gameState, action)
-        weights = self.getWeights(gameState, action)
+        features = self.evaluateAttackParameters(gameState, action)
+        weights = self.getCostOfAttackParameter(gameState, action)
         return features * weights
 
-    # Choose the best action for the current agent to take
-    def chooseAction(self, gameState):
-        agentPos = gameState.getAgentPosition(self.index)
+    def evaluateAttackParameters(self, gameState, action):
+        features = util.Counter()
+        successor = self.getSuccessor(gameState, action)
+        features['successorScore'] = self.getScore(successor)
+        return features
+
+    def getCostOfAttackParameter(self, gameState, action):
+        return {'successorScore': 1.0}
+
+
+class DefensiveReflexAgent(BaseAgent):
+    def __init__(self, index):
+        CaptureAgent.__init__(self, index)
+        self.target = None
+        self.previousFood = []
+        self.counter = 0
+
+    def registerInitialState(self, gameState):
+        CaptureAgent.registerInitialState(self, gameState)
+        self.setPatrolPoint(gameState)
+
+    def setPatrolPoint(self, gameState):
+        '''
+        Look for center of the maze for patrolling
+        '''
+        x = (gameState.data.layout.width - 2) // 2
+        if not self.red:
+            x += 1
+        self.patrolPoints = []
+        for i in range(1, gameState.data.layout.height - 1):
+            if not gameState.hasWall(x, i):
+                self.patrolPoints.append((x, i))
+
+        for i in range(len(self.patrolPoints)):
+            if len(self.patrolPoints) > 2:
+                self.patrolPoints.remove(self.patrolPoints[0])
+                self.patrolPoints.remove(self.patrolPoints[-1])
+            else:
+                break
+
+    def getNextDefensiveMove(self, gameState):
+
+        agentActions = []
         actions = gameState.getLegalActions(self.index)
 
-        # Distances between agent and foods
-        distToFood = []
-        for food in self.myFoods:
-            distToFood.append(self.distancer.getDistance(agentPos, food))
+        rev_dir = Directions.REVERSE[gameState.getAgentState(
+            self.index).configuration.direction]
+        actions.remove(Directions.STOP)
 
-        # Distances between agent and opponents
-        distToEnemyAgents = []
-        for opponent in self.enemyAgents:
-            opponentPosition = gameState.getAgentPosition(opponent)
-            if opponentPosition != None:
-                distToEnemyAgents.append(self.distancer.getDistance(agentPos, opponentPosition))
+        for i in range(0, len(actions)-1):
+            if rev_dir == actions[i]:
+                actions.remove(rev_dir)
 
-        # Get the best action based on values
-        values = [self.evaluate(gameState, a) for a in actions]
-        maxValue = max(values)
-        bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-        return random.choice(bestActions)
+        for i in range(len(actions)):
+            a = actions[i]
+            new_state = gameState.generateSuccessor(self.index, a)
+            if not new_state.getAgentState(self.index).isPacman:
+                agentActions.append(a)
 
+        if len(agentActions) == 0:
+            self.counter = 0
+        else:
+            self.counter = self.counter + 1
+        if self.counter > 4 or self.counter == 0:
+            agentActions.append(rev_dir)
 
-#Still working on this
-#class offensiveAgent(CaptureAgent):
+        return agentActions
+
+    def chooseAction(self, gameState):
+
+        position = gameState.getAgentPosition(self.index)
+        if position == self.target:
+            self.target = None
+        invaders = []
+        nearestInvader = []
+        minDistance = float("inf")
+
+        # Look for enemy position in our home
+        opponentsPositions = self.getOpponents(gameState)
+        i = 0
+        while i != len(opponentsPositions):
+            opponentPos = opponentsPositions[i]
+            opponent = gameState.getAgentState(opponentPos)
+            if opponent.isPacman and opponent.getPosition() != None:
+                opponentPos = opponent.getPosition()
+                invaders.append(opponentPos)
+            i = i + 1
+
+        # if enemy is found chase it and kill it
+        if len(invaders) > 0:
+            for oppPosition in invaders:
+                dist = self.getMazeDistance(oppPosition, position)
+                if dist < minDistance:
+                    minDistance = dist
+                    nearestInvader.append(oppPosition)
+            self.target = nearestInvader[-1]
+
+        # if enemy has eaten some food, then remove it from targets
+        else:
+            if len(self.previousFood) > 0:
+                if len(self.getFoodYouAreDefending(gameState).asList()) < len(self.previousFood):
+                    yummy = set(self.previousFood) - \
+                        set(self.getFoodYouAreDefending(gameState).asList())
+                    self.target = yummy.pop()
+
+        self.previousFood = self.getFoodYouAreDefending(gameState).asList()
+
+        if self.target == None:
+            if len(self.getFoodYouAreDefending(gameState).asList()) <= 4:
+                highPriorityFood = self.getFoodYouAreDefending(
+                    gameState).asList() + self.getCapsulesYouAreDefending(gameState)
+                self.target = random.choice(highPriorityFood)
+            else:
+                self.target = random.choice(self.patrolPoints)
+        candAct = self.getNextDefensiveMove(gameState)
+        awsomeMoves = []
+        fvalues = []
+
+        i = 0
+
+        # find the best move
+        while i < len(candAct):
+            a = candAct[i]
+            nextState = gameState.generateSuccessor(self.index, a)
+            newpos = nextState.getAgentPosition(self.index)
+            awsomeMoves.append(a)
+            fvalues.append(self.getMazeDistance(newpos, self.target))
+            i = i + 1
+
+        best = min(fvalues)
+        bestActions = [a for a, v in zip(awsomeMoves, fvalues) if v == best]
+        bestAction = random.choice(bestActions)
+        return bestAction
