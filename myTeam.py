@@ -1,112 +1,273 @@
-# multiAgents.py
-# --------------
-# Licensing Information:  You are free to use or extend these projects for
-# educational purposes provided that (1) you do not distribute or publish
-# solutions, (2) you retain this notice, and (3) you provide clear
-# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-#
-# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
-# The core projects and autograders were primarily created by John DeNero
-# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# Student side autograding was added by Brad Miller, Nick Hay, and
-# Pieter Abbeel (pabbeel@cs.berkeley.edu).
-
 from __future__ import print_function
 from captureAgents import CaptureAgent
+import math
 import distanceCalculator
-import random
-import time, util, sys
-from game import Directions, Actions
+import random, time, util, sys
+from game import Directions
 import game
 from util import nearestPoint
 
-
 def createTeam(firstIndex, secondIndex, isRed,
-               first='DefensiveReflexAgent', second='DefensiveReflexAgent'):
-    """
-    This function should return a list of two agents that will form the
-    team, initialized using firstIndex and secondIndex as their agent
-    index numbers.  isRed is True if the red team is being created, and
-    will be False if the blue team is being created.
+               first = 'CapsuleReflexAgent', second = 'AttackReflexAgent'):
+  return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
-    As a potentially helpful development aid, this function can take
-    additional string-valued keyword arguments ("first" and "second" are
-    such arguments in the case of this function), which will come from
-    the --redOpts and --blueOpts command-line arguments to capture.py.
-    For the nightly contest, however, your team will be created without
-    any extra arguments, so you should make sure that the default
-    behavior is what you want for the nightly contest.
-    """
-    return [eval(first)(firstIndex), eval(second)(secondIndex)]
+class ReflexCaptureAgent(CaptureAgent):
+  def registerInitialState(self, gameState):
+    self.start = gameState.getAgentPosition(self.index)
+    CaptureAgent.registerInitialState(self, gameState)
+
+  def findPathAndCost(self, gameState, agentIndex, travelTo, maxCost, checkForDeadend):
+    openNodes = [Node(gameState, None, None, 0, 0)]
+    closedNodes = []
+
+    while(len(openNodes) != 0):
+      nodeAndIndex = self.findLowestTotalCostNodeAndPop(openNodes)
+      currentNode = nodeAndIndex[0]
+      del openNodes[nodeAndIndex[1]]
+
+      legalActions = currentNode.state.getLegalActions(agentIndex)  # gameState.getLegalActions(self.index)
+
+      successors = []
+      for action in legalActions:
+        successor = currentNode.state.generateSuccessor(agentIndex, action)
+        heuristics = self.calculateHeuristicCosts(successor, successor.getAgentPosition(agentIndex), travelTo)
+
+        if(currentNode.generalCost + heuristics[1] > maxCost):
+          continue
+
+        successors.append(Node(
+          successor,
+          currentNode,
+          action,
+          currentNode.generalCost + 1 + heuristics[0],
+          currentNode.generalCost + 1 + heuristics[1]
+          ))
+
+      for s in successors:
+        if(self.agentPositionMatchesDestination(s, travelTo)):
+          pathAndCost = self.generatePathOfActions(s)
+          return pathAndCost
+
+        if(self.nodeShouldBeOpened(s, openNodes, closedNodes)):
+          openNodes.append(s)
+      closedNodes.append(currentNode)
+    return None
+
+  def findLowestTotalCostNodeAndPop(self, openList):
+    lowestNode = openList[0]
+    lowIndex = 0
+
+    i = 0
+    for o in openList:
+      if(o.totalCost <= lowestNode.totalCost):
+        lowestNode = o
+        lowIndex = i
+      i += 1
+
+    return (lowestNode, lowIndex)
+
+  def agentPositionMatchesDestination(self, node, travelTo):
+    agentX, agentY = node.state.getAgentPosition(self.index)
+    if(agentX == int(travelTo[0]) and int(agentY) == int(travelTo[1])):
+      return True
+    return False
+
+  def nodeShouldBeOpened(self, node, openList, closedList):
+    for o in openList:
+      if(node.state.getAgentPosition(self.index) == o.state.getAgentPosition(self.index) and node.totalCost > o.totalCost):
+        return False
+
+    for c in closedList:
+      if (node.state.getAgentPosition(self.index) == c.state.getAgentPosition(
+              self.index) and node.totalCost > c.totalCost):
+        return False
+
+    return True
+
+  def generatePathOfActions(self, node):
+    totalCost = node.generalCost
+    actionList = []
+    currentNode = node
+    while(currentNode.parent != None):
+      actionList.insert(0, currentNode.action)
+      currentNode = currentNode.parent
+
+    return (actionList, totalCost)
+
+  def calculateHeuristicCosts(self, gameState, travelFrom, travelTo):
+    agentPosition = gameState.getAgentPosition(self.index)
+    enemyCost = 0
+    teamateProximityCost = 0
+    closestEnemy = 999999
+
+    distanceCost = self.getMazeDistance(travelFrom, travelTo)
+
+    agents = self.getOpponents(gameState)
+    for a in agents:
+      state = gameState.getAgentState(a)
+      if(state.scaredTimer == 0 and (not state.isPacman)):
+        enemyPosition = gameState.getAgentPosition(a)
+        proximity = 999999
+
+        if(enemyPosition != None):
+          proximity = self.getMazeDistance(agentPosition, enemyPosition)
+
+        if(proximity < closestEnemy):
+          closestEnemy = proximity
+
+    if(closestEnemy == 4):
+      enemyCost = 3
+    elif(closestEnemy == 3):
+      enemyCost = 7
+    elif(closestEnemy == 2):
+      enemyCost = 15
+    elif(closestEnemy == 1):
+      enemyCost = 30
+
+    team = self.getTeam(gameState)
+    for t in team:
+      if(t != self.index and self.getMazeDistance(agentPosition, gameState.getAgentPosition(t)) < 4):
+        teamateProximityCost = 5
+
+    return (enemyCost, distanceCost + enemyCost + teamateProximityCost)
+
+  def getSuccessor(self, gameState, action):
+    successor = gameState.generateSuccessor(self.index, action)
+    pos = successor.getAgentState(self.index).getPosition()
+    if pos != nearestPoint(pos):
+      return successor.generateSuccessor(self.index, action)
+    else:
+      return successor
+
+  def getLowestCostRetreatPath(self, gameState):
+    retreat = self.getRetreatCells(gameState)
+
+    lowestCost = 125
+    lowestPath = None
+
+    for r in retreat:
+      path = self.findPathAndCost(gameState, self.index, r, lowestCost, False)
+      if (path != None and path[1] < lowestCost):
+        lowestPath = path[0]
+        lowestCost = path[1]
+
+    return lowestPath
+
+  def getLowestCostFoodPath(self, gameState):
+    food = self.getFood(gameState).asList()
+
+    lowestCost = 60
+    lowestPath = None
+
+    while len(food) > 0:
+
+      closestDistance = 99999
+      closestIndex = 0
+      i = 0
+      for f in food:
+        currentDistance = self.getMazeDistance(gameState.getAgentPosition(self.index), f)
+        if(currentDistance < closestDistance):
+          closestDistance = currentDistance
+          closestIndex = i
+        i += 1
+      currentFood = food.pop(closestIndex)
 
 
-class BaseAgent(CaptureAgent):
-    """
-    A defense agent that stays in the middle of the map and tries to guard
-    against attackers. If an attacker is on our side, will attempt to try 
-    and catch opponent. 
-    """
+      path = self.findPathAndCost(gameState, self.index, currentFood, lowestCost, True)
+      if(path != None and path[1] < lowestCost):
+        lowestPath = path[0]
+        lowestCost = path[1]
 
-    def getSuccessor(self, gameState, action):
-            successor = gameState.generateSuccessor(self.index, action)
-            pos = successor.getAgentState(self.index).getPosition()
-            if pos != nearestPoint(pos):
+    return lowestPath
 
-                return successor.generateSuccessor(self.index, action)
-            else:
-                return successor
+  def getRetreatCells(self, gameState):
+    homeSquares = []
+    wallsMatrix = gameState.data.layout.walls
+    wallsList = wallsMatrix.asList()
+    layoutX = wallsMatrix.width
+    redX = (layoutX - 1) / 2
+    blueX = (int)(math.ceil((float)(layoutX - 1) / 2))
 
-    def evaluate(self, gameState, action):
-        features = self.evaluateAttackParameters(gameState, action)
-        weights = self.getCostOfAttackParameter(gameState, action)
-        return features * weights
+    layoutY = wallsMatrix.height - 1
 
-    def getWeights(self, gameState, action):
-        return{'successorScore': 1.0}
+    if (gameState.isOnRedTeam(self.index)):
+      for y in range(1, layoutY - 1):
+        if ((redX, y) not in wallsList):
+          homeSquares.append((redX, y))
+    else:
+      for y in range(1, layoutY - 1):
+        if ((blueX, y) not in wallsList):
+          homeSquares.append((blueX, y))
 
+    return homeSquares
 
-class DefensiveReflexAgent(BaseAgent):
-    def __init__(self, index):
-        CaptureAgent.__init__(self, index)
-        self.target = None
+  def shouldRetreat(self, gameState):
+    opponents = self.getOpponents(gameState)
+    for o in opponents:
+      position = gameState.getAgentPosition(o)
+      if(position != None and self.getMazeDistance(position, gameState.getAgentPosition(self.index)) <= 4
+              and gameState.getAgentState(o).scaredTimer == 0) and gameState.getAgentState(self.index).isPacman:
+        return True
 
-    def registerInitialState(self, gameState):
-        CaptureAgent.registerInitialState(self, gameState)
-        self.setPatrolPoint(gameState)
+class CapsuleReflexAgent(ReflexCaptureAgent):
 
-    def halfControl(self, gameState):
-        '''
-        Gets the position for the center of the maze so it can
-        stand guard. Not sure really what the hell to do with it
-        after it is in the middle, but hey this is what I got so 
-        far
-        '''
-        #Assigns the variable x to the location of the middle of 
-        #the grid. Uses function: halfGrid(grid, red) from capture.py
-        x = (gameState.data.layout.width - 2) // 2
-        if not self.red:
-            x += 1
-        self.patrolLocations = []                                                 #Array to hold locations to patrol
-        for i in range(1, gameState.data.layout.height - 1):            
-            if not gameState.hasWall(x, i):                                       #Checks if the location is a wall
-                self.patrolLocations.append((x, i))                               #Adds location if its not a wall
+  def chooseAction(self, gameState):
+    opponents = self.getOpponents(gameState)
+    capsule = self.getCapsules(gameState)
 
-        for i in range(len(self.patrolLocations)):
-            if len(self.patrolLocations) > 2:
-                self.patrolLocations.remove(self.patrolLocations[0])
-                self.patrolPoints.remove(self.patrolLocations[1])
-            else:
-                break
-    #Actions for defensive movement
-    def defensiveMovement(self, gameState):
+    if((gameState.getAgentState(opponents[0]).scaredTimer == 0 or gameState.getAgentState(opponents[1]).scaredTimer == 0)
+            and len(capsule) != 0):
+      capsulePath = self.findPathAndCost(gameState, self.index, capsule[0], 150, True)
+      if(capsulePath != None):
+        return capsulePath[0][0]
 
-        defensiveAgentActions = []                                                 #Array to store the actions for our defense agent
-        actions = gameState.getLegalActions(self.index)                            #Gets the legal actions 
+    if(self.shouldRetreat(gameState)):
+      retreatPath = self.getLowestCostRetreatPath(gameState)
+      if(retreatPath != None):
+        return retreatPath[0]
 
-        directionsReversed = Directions.REVERSE[gameState.getAgentState(           #Uses reverse directions from Directions class
-            self.index).configuration.direction]        
-        actions.remove(Directions.STOP)                                            #Removes the action stop so our agent never stops moving
+    if (len(self.getFood(gameState).asList()) > 2):
+        foodPath = self.getLowestCostFoodPath(gameState)
+        if(foodPath != None):
+          return foodPath[0]
 
-        return defensiveAgentActions
+    retreatPath = self.getLowestCostRetreatPath(gameState)
+    if(retreatPath != None):
+      return retreatPath[0]
 
-    
+    return "Stop"
+
+class AttackReflexAgent(ReflexCaptureAgent):
+
+  def chooseAction(self, gameState):
+
+    if (self.shouldRetreat(gameState)):
+      retreatPath = self.getLowestCostRetreatPath(gameState)
+      if (retreatPath != None):
+        return retreatPath[0]
+
+    if (len(self.getFood(gameState).asList()) > 2):
+      foodPath = self.getLowestCostFoodPath(gameState)
+      if (foodPath != None):
+        return foodPath[0]
+
+    retreatPath = self.getLowestCostRetreatPath(gameState)
+    if(retreatPath != None):
+      return retreatPath[0]
+
+    return "Stop"
+
+class Node:
+  state = None
+  parent = None
+  action = None
+  generalCost = 0
+  totalCost = 0
+
+  def __init__(self, s, p, a, g, t):
+    self.state = s
+    self.parent = p
+    self.action = a
+    self.generalCost = g
+    self.totalCost = t
+
