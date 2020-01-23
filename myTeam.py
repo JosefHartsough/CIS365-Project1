@@ -174,7 +174,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)#self.getScore(successor)
 
-    print("foodList", foodList)
+    # print("foodList", foodList)
 
     #if(len(self.observationHistory) > 2):
       #lastPos = self.observationHistory[-2].getAgentPosition(self.index)
@@ -199,6 +199,12 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     #this is the part where it goes straight to the middle food and then moves on.
     middle_food = (14, 9) if not self.red else (17, 6)
     print("score: ", self.getScore(successor))
+    myPos = successor.getAgentState(self.index).getPosition()
+    print("myPos", myPos)
+    if len(self.observationHistory) > 10:
+      moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
+      print("moveHistory", moveHistory)
+
     if middle_food in foodList:
       myPos = successor.getAgentState(self.index).getPosition()
       minDistance = self.getMazeDistance(myPos, middle_food)
@@ -207,10 +213,26 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       if len(foodList) > 0: # This should always be True,  but better safe than sorry
         if self.getScore(successor) >= 4:
           myPos = successor.getAgentState(self.index).getPosition()
-          guardArea = self.getMazeDistance(myPos, (10, 7))
-          distance = self.distancer.getDistance(myPos, (10, 7))
-          print("distance", distance)
-          features['guardArea'] = guardArea
+          topGuardPoint = (12, 14)
+          bottomGuardPoint = (12, 7)
+          # distanceToTop = self.distancer.getDistance(myPos, topGuardPoint)
+          # print("distance", distanceToTop)
+          moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
+          print("moveHistory", moveHistory)
+          print("moveHistory[0]", moveHistory[0])
+          print("moveHistory[0][1]", moveHistory[0][1])
+          print("moveHistory[6][1]", moveHistory[6][1])
+          print("moveHistory[6][1] - moveHistory[0][1]", moveHistory[6][1] - moveHistory[0][1])
+          first_recent = moveHistory[1][1] - moveHistory[0][1]
+          second_recent = moveHistory[2][1] - moveHistory[1][1]
+          third_recent = moveHistory[3][1] - moveHistory[2][1]
+          four_recent = moveHistory[4][1] - moveHistory[3][1]
+          if first_recent == 0 and four_recent > 0:
+            guardArea = self.getMazeDistance(myPos, topGuardPoint)
+            features['guardArea'] = guardArea
+          elif first_recent == 0 and four_recent < 0:
+            guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
+            features['guardArea'] = guardArea
         elif gameState.getAgentState(self.index).numCarrying >= 4:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, self.start)
@@ -220,7 +242,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
           features['distanceToFood'] = minDistance
 
-    # if action == Directions.STOP: features['stop'] = 1
+    if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
     if action == rev: features['reverse'] = 1
 

@@ -12,7 +12,7 @@ def createTeam(firstIndex, secondIndex, isRed,
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
 class ReflexCaptureAgent(CaptureAgent):
- 
+
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
@@ -56,14 +56,14 @@ class ReflexCaptureAgent(CaptureAgent):
       return successor
 
   def evaluate(self, gameState, action):
-    
+
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
 
     return features * weights
 
   def getFeatures(self, gameState, action):
-    
+
     features = util.Counter()
     successor = self.getSuccessor(gameState, action)
     features['successorScore'] = self.getScore(successor)
@@ -71,7 +71,7 @@ class ReflexCaptureAgent(CaptureAgent):
     return features
 
   def getWeights(self, gameState, action):
-    
+
     return {'successorScore': 1.0}
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
@@ -107,7 +107,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     myPos = myState.getPosition()
 
     if self.getScore(gameState) <= 0:
-      foodList = self.getFood(successor).asList()    
+      foodList = self.getFood(successor).asList()
       features['successorScore'] = -len(foodList)
 
       if action == Directions.STOP:
@@ -115,7 +115,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       else:
           features['stop'] = 0
 
-      if len(foodList) > 0: 
+      if len(foodList) > 0:
         myPos = successor.getAgentState(self.index).getPosition()
         minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
         features['distanceToFood'] = minDistance
@@ -152,7 +152,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if len(chasers) > 0:
           scared = chasers[0].scaredTimer > 0
           close_dist = min([float(self.getMazeDistance(myPos, c.getPosition())) for c in chasers])
-          
+
           legal_actions = successor.getLegalActions(self.index)
           if action == Directions.STOP:
               features['intowall'] = -1000000000
@@ -161,7 +161,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           if legal_actions == [Directions.STOP] or legal_actions == [Directions.STOP, rev] or \
                   legal_actions == [rev, Directions.STOP]:
               features['intowall'] = -1000000000
-      
+
       if scared:
         features['fleeEnemy'] = -1.0/close_dist
 
@@ -190,7 +190,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         foodList = self.getFoodYouAreDefending(gameState).asList()
         dist = min([self.getMazeDistance(myPos, food) for food in foodList])
         features['byFood'] = dist
-          
+
         team = [successor.getAgentState(i) for i in self.getTeam(successor) if i != self.index]
         defenders = [a for a in team if not a.isPacman and a.getPosition() != None]
 
@@ -220,7 +220,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           distances = [self.getMazeDistance(food, centroid) for centroid in centroids]
           clusters[distances.index(min(distances))].append(food)
         centroids = [self.findCentroid(cluster, gameState) for cluster in clusters]
-        
+
       tot_dist = self.calcTotalDist(centroids, clusters)
 
       if tot_dist >= last_dist:
@@ -228,7 +228,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       else:
           last_centroids = centroids
           last_clusters = clusters
-      
+
     return (last_centroids, [len(clust) for clust in last_clusters])
 
   def calcTotalDist(self, centroids, clusters):
