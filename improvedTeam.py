@@ -4,7 +4,7 @@
 # educational purposes provided that (1) you do not distribute or publish
 # solutions, (2) you retain this notice, and (3) you provide clear
 # attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-# 
+#
 # Attribution Information: The Pacman AI projects were developed at UC Berkeley.
 # The core projects and autograders were primarily created by John DeNero
 # (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
@@ -58,7 +58,7 @@ class ReflexCaptureAgent(CaptureAgent):
   """
   A base class for reflex agents that chooses score-maximizing actions
   """
- 
+
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
@@ -168,29 +168,29 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     myState = successor.getAgentState(self.index)
     myPos = myState.getPosition()
 
-    foodList = self.getFood(successor).asList()    
+    foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)#self.getScore(successor)
 
- 
+
     #if(len(self.observationHistory) > 2):
       #lastPos = self.observationHistory[-2].getAgentPosition(self.index)
       #if(lastPos != [14,9]):
-    
+
     agents = self.getOpponents(gameState)
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     print("this is from printing agents ", str(enemies))
     for a in agents:
       #enemyPos = gameState.getAgentPosition(a)
-      
-      #here I am trying to look through the previous positions of the enemy agent and check if the average 
+
+      #here I am trying to look through the previous positions of the enemy agent and check if the average
       #distance between the middle point and the last moves of the enemy and set it a new feature. But i havent finished it yet...
-      if len(a.observationHistory) > 15:
-        moveHistory = [self.observationHistory[-1*i].getAgentState(a.index).getPosition() for i in range(2,10)]
+      if len(self.observationHistory) > 15:
+        moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(2,10)]
         d = [self.getMazeDistance(enemyPos, (15,8)) for enemyPos in moveHistory]
         avg = sum(d) / len(d)
         print("this is the average for the number of distance from the centre position", str(avg))
         features['avoidTheMiddle'] = avg
-  
+
     #this is the part where it goes straight to the middle food and then moves on.
     if(14,9) in foodList:
         myPos = successor.getAgentState(self.index).getPosition()
@@ -205,11 +205,11 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
 
     # Compute distance to the nearest food
-    
+
 
     # Determine if the enemy is closer to you than they were last time
     # and you are in their territory.
-    # Note: This behavior isn't perfect, and can force Pacman to cower 
+    # Note: This behavior isn't perfect, and can force Pacman to cower
     # in a corner.  I leave it up to you to improve this behavior.
     # close_dist = 9999.0
     # if self.index == 1 and gameState.getAgentState(self.index).isPacman:
@@ -218,7 +218,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     #   if len(chasers) > 0:
     #     close_dist = min([float(self.getMazeDistance(myPos, c.getPosition())) for c in chasers])
 
-      # View the action and close distance information for each 
+      # View the action and close distance information for each
       # possible move choice.
       # print("Action: "+str(action))
       # print("\t\t"+str(close_dist), sys.stderr)
@@ -227,7 +227,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
-    if action == rev: features['reverse'] = 1 
+    if action == rev: features['reverse'] = 1
 
     return features
 
@@ -284,7 +284,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     #   if len(defenders) > 0:
     #       ally_dist = min([self.getMazeDistance(myPos, ally.getPosition()) for ally in defenders])
     #       features['byAlly'] = 1.0/(ally_dist+.000000001)
-    
+
 
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
