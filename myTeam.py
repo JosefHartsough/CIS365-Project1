@@ -208,7 +208,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if gameState.getAgentState(self.index).numCarrying >= 3:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, self.start)
-          features['distanceToFood'] = minDistance
+          features['confirmFood'] = minDistance
         else:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
@@ -240,6 +240,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     'stop': -100,
     'reverse':-5,
     'avoidTheMiddle': 100,
+    'confirmFood': -1
     }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
