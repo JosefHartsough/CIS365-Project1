@@ -33,7 +33,7 @@ from util import nearestPoint
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
+               first = 'OffensiveReflexAgent', second = 'DefAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -74,16 +74,17 @@ class ReflexCaptureAgent(CaptureAgent):
     Picks among the actions with the highest Q(s,a).
     """
     actions = gameState.getLegalActions(self.index)
+    print("legal actions", actions)
     remaining = gameState.getCapsules()
 
     capPos = self.getCapsules(gameState)
-    print("this is the location of the capsule!!!!!!!!", str(capPos))
-    print("this is the number of remaining capsule#########", str(remaining))
+    # print("this is the location of the capsule!!!!!!!!", str(capPos))
+    # print("this is the number of remaining capsule#########", str(remaining))
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
     values = [self.evaluate(gameState, a) for a in actions]
-    if self.index == 1:
-      print(values, file=sys.stderr)
+    # if self.index == 1:
+    #   print(values, file=sys.stderr)
       # print(self.getPreviousObservation(), file=sys.stderr)
 
     # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
@@ -132,8 +133,8 @@ class ReflexCaptureAgent(CaptureAgent):
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
 
-    if self.index == 1:
-      print(str(features) + str(weights), file=sys.stderr)
+    # if self.index == 1:
+    #   print(str(features) + str(weights), file=sys.stderr)
       # print(gameState.getAgentState(self.index)) # Print out a text representation of the world.
 
     return features * weights
@@ -171,6 +172,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)#self.getScore(successor)
 
+    print("foodList", foodList)
 
     #if(len(self.observationHistory) > 2):
       #lastPos = self.observationHistory[-2].getAgentPosition(self.index)
@@ -178,7 +180,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
     agents = self.getOpponents(gameState)
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-    print("this is from printing agents ", str(enemies))
+    print("enemies ", str(enemies))
     for a in agents:
       #enemyPos = gameState.getAgentPosition(a)
 
@@ -188,19 +190,24 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(2,10)]
         d = [self.getMazeDistance(enemyPos, (15,8)) for enemyPos in moveHistory]
         avg = sum(d) / len(d)
-        print("this is the average for the number of distance from the centre position", str(avg))
+        print("avg distance", str(avg))
         features['avoidTheMiddle'] = avg
 
     #this is the part where it goes straight to the middle food and then moves on.
-    if(14,9) in foodList:
+    middle_food = (14, 9) if not self.red else (17, 6)
+    print("middle_food", middle_food)
+    if middle_food in foodList:
         myPos = successor.getAgentState(self.index).getPosition()
-        minDistance = self.getMazeDistance(myPos, (14,9))
+        minDistance = self.getMazeDistance(myPos, middle_food)
         features['distanceToFood'] = minDistance
     else:
       if len(foodList) > 0: # This should always be True,  but better safe than sorry
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-          features['distanceToFood'] = minDistance
+          print("minDistance", minDistance)
+          # features['distanceToFood'] = minDistance
+          print("shouldn't be in here yet")
+          features['stop'] = 1
 
 
 
@@ -243,7 +250,14 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
   #       features['avoidTheMiddle'] = avg
 
   def getWeights(self, gameState, action):
-    return {'successorScore': 100, 'distanceToFood': -1, 'fleeEnemy': -2.0, 'stop': -100, 'reverse':-5, 'avoidTheMiddle':0}
+    return {
+    'successorScore': 100,
+    'distanceToFood': -1,
+    'fleeEnemy': -2.0,
+    'stop': -100,
+    'reverse':-5,
+    'avoidTheMiddle':100,
+    }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
   """
@@ -272,18 +286,18 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
       dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
       features['invaderDistance'] = min(dists)
       features['reverse'] = -1
-    # else:
-    #   foodList = self.getFoodYouAreDefending(successor).asList()
-    #   dist = min([self.getMazeDistance(myPos, food) for food in foodList])
-    #   features['byFood'] = dist
-    #   capsules = self.getCapsulesYouAreDefending(successor)
-    #   if len(capsules) > 0:
-    #       features['byCapsule'] = min([self.getMazeDistance(myPos, capsule) for capsule in capsules])
-    #   team = [successor.getAgentState(i) for i in self.getTeam(successor) if i != self.index]
-    #   defenders = [a for a in team if not a.isPacman and a.getPosition() != None]
-    #   if len(defenders) > 0:
-    #       ally_dist = min([self.getMazeDistance(myPos, ally.getPosition()) for ally in defenders])
-    #       features['byAlly'] = 1.0/(ally_dist+.000000001)
+    else:
+      foodList = self.getFoodYouAreDefending(successor).asList()
+      dist = min([self.getMazeDistance(myPos, food) for food in foodList])
+      features['byFood'] = dist
+      capsules = self.getCapsulesYouAreDefending(successor)
+      if len(capsules) > 0:
+          features['byCapsule'] = min([self.getMazeDistance(myPos, capsule) for capsule in capsules])
+      team = [successor.getAgentState(i) for i in self.getTeam(successor) if i != self.index]
+      defenders = [a for a in team if not a.isPacman and a.getPosition() != None]
+      if len(defenders) > 0:
+          ally_dist = min([self.getMazeDistance(myPos, ally.getPosition()) for ally in defenders])
+          features['byAlly'] = 1.0/(ally_dist+.000000001)
 
 
     if action == Directions.STOP: features['stop'] = 1
@@ -293,4 +307,99 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     return features
 
   def getWeights(self, gameState, action):
-    return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
+    return {
+      'numInvaders': -1000,
+      'onDefense': 100,
+      'invaderDistance': -10,
+      'stop': -100,
+      'reverse': -2
+      }
+
+class DefAgent(ReflexCaptureAgent):
+    def __init__(self, index):
+        CaptureAgent.__init__(self, index)
+        self.target = None
+        self.previousFood = []
+        self.counter = 0
+
+    def registerInitialState(self, gameState):
+        CaptureAgent.registerInitialState(self, gameState)
+        self.setPatrolPoint(gameState)
+
+    def setPatrolPoint(self, gameState):
+        '''
+        Look for center of the maze for patrolling
+        '''
+        x = (gameState.data.layout.width - 2) // 2
+        if not self.red:
+            x += 1
+        self.patrolPoints = []
+        for i in range(1, gameState.data.layout.height - 1):
+            if not gameState.hasWall(x, i):
+                self.patrolPoints.append((x, i))
+
+        for i in range(len(self.patrolPoints)):
+            if len(self.patrolPoints) > 2:
+                self.patrolPoints.remove(self.patrolPoints[0])
+                self.patrolPoints.remove(self.patrolPoints[-1])
+            else:
+                break
+
+    def getNextDefensiveMove(self, gameState):
+
+        agentActions = []
+        actions = gameState.getLegalActions(self.index)
+
+        rev_dir = Directions.REVERSE[gameState.getAgentState(
+            self.index).configuration.direction]
+        actions.remove(Directions.STOP)
+
+        for i in range(0, len(actions)-1):
+            if rev_dir == actions[i]:
+                actions.remove(rev_dir)
+
+        for i in range(len(actions)):
+            a = actions[i]
+            new_state = gameState.generateSuccessor(self.index, a)
+            if not new_state.getAgentState(self.index).isPacman:
+                agentActions.append(a)
+
+        if len(agentActions) == 0:
+            self.counter = 0
+        else:
+            self.counter = self.counter + 1
+        if self.counter > 4 or self.counter == 0:
+            agentActions.append(rev_dir)
+
+        return agentActions
+
+    def chooseAction(self, gameState):
+
+        position = gameState.getAgentPosition(self.index)
+
+        if self.target == None:
+            if len(self.getFoodYouAreDefending(gameState).asList()) <= 4:
+                highPriorityFood = self.getFoodYouAreDefending(
+                    gameState).asList() + self.getCapsulesYouAreDefending(gameState)
+                self.target = random.choice(highPriorityFood)
+            else:
+                self.target = random.choice(self.patrolPoints)
+        candAct = self.getNextDefensiveMove(gameState)
+        awsomeMoves = []
+        fvalues = []
+
+        i = 0
+
+        # find the best move
+        while i < len(candAct):
+            a = candAct[i]
+            nextState = gameState.generateSuccessor(self.index, a)
+            newpos = nextState.getAgentPosition(self.index)
+            awsomeMoves.append(a)
+            fvalues.append(self.getMazeDistance(newpos, self.target))
+            i = i + 1
+
+        best = min(fvalues)
+        bestActions = [a for a, v in zip(awsomeMoves, fvalues) if v == best]
+        bestAction = random.choice(bestActions)
+        return bestAction
