@@ -202,14 +202,16 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         features['distanceToFood'] = minDistance
     else:
       if len(foodList) > 0: # This should always be True,  but better safe than sorry
+        if gameState.getAgentState(self.index).numCarrying >= 3:
+          myPos = successor.getAgentState(self.index).getPosition()
+          minDistance = self.getMazeDistance(myPos, middle_food)
+          features['returnHome'] = minDistance
+        else:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
           print("minDistance", minDistance)
-          # features['distanceToFood'] = minDistance
-          print("shouldn't be in here yet")
-          features['stop'] = 1
-
-
+          features['distanceToFood'] = minDistance
+          # features['stop'] = 1
 
     # Compute distance to the nearest food
 
@@ -256,7 +258,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     'fleeEnemy': -2.0,
     'stop': -100,
     'reverse':-5,
-    'avoidTheMiddle':100,
+    'avoidTheMiddle': 100,
+    'returnHome': 100
     }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
