@@ -184,38 +184,43 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     print("enemies ", str(enemies))
     print("self start", self.start)
-    for a in agents:
+    # for a in agents:
       #enemyPos = gameState.getAgentPosition(a)
 
       #here I am trying to look through the previous positions of the enemy agent and check if the average
       #distance between the middle point and the last moves of the enemy and set it a new feature. But i havent finished it yet...
-      if len(self.observationHistory) > 15:
-        moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(2,10)]
-        d = [self.getMazeDistance(enemyPos, (15,8)) for enemyPos in moveHistory]
-        avg = sum(d) / len(d)
-        print("avg distance", str(avg))
-        features['avoidTheMiddle'] = avg
+      # if len(self.observationHistory) > 15:
+      #   moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(2,10)]
+      #   d = [self.getMazeDistance(enemyPos, (15,8)) for enemyPos in moveHistory]
+      #   avg = sum(d) / len(d)
+      #   print("avg distance", str(avg))
+      #   features['avoidTheMiddle'] = avg
 
     #this is the part where it goes straight to the middle food and then moves on.
     middle_food = (14, 9) if not self.red else (17, 6)
-    print("middle_food", middle_food)
+    print("score: ", self.getScore(successor))
     if middle_food in foodList:
       myPos = successor.getAgentState(self.index).getPosition()
       minDistance = self.getMazeDistance(myPos, middle_food)
       features['distanceToFood'] = minDistance
     else:
       if len(foodList) > 0: # This should always be True,  but better safe than sorry
-        if gameState.getAgentState(self.index).numCarrying >= 3:
+        if self.getScore(successor) >= 4:
+          myPos = successor.getAgentState(self.index).getPosition()
+          guardArea = self.getMazeDistance(myPos, (10, 7))
+          distance = self.distancer.getDistance(myPos, (10, 7))
+          print("distance", distance)
+          features['guardArea'] = guardArea
+        elif gameState.getAgentState(self.index).numCarrying >= 4:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, self.start)
           features['confirmFood'] = minDistance
         else:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-          print("minDistance", minDistance)
           features['distanceToFood'] = minDistance
 
-    if action == Directions.STOP: features['stop'] = 1
+    # if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
     if action == rev: features['reverse'] = 1
 
@@ -235,12 +240,13 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
   def getWeights(self, gameState, action):
     return {
     'successorScore': 100,
-    'distanceToFood': -1,
+    'distanceToFood': -10,
     'fleeEnemy': -2.0,
-    'stop': -100,
+    # 'stop': -100,
     'reverse':-5,
-    'avoidTheMiddle': 100,
-    'confirmFood': -1
+    # 'avoidTheMiddle': 100,
+    'confirmFood': -10,
+    'guardArea': -10
     }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
