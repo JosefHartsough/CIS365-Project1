@@ -227,12 +227,25 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           second_recent = moveHistory[2][1] - moveHistory[1][1]
           third_recent = moveHistory[3][1] - moveHistory[2][1]
           four_recent = moveHistory[4][1] - moveHistory[3][1]
+          # Computes distance to invaders we can see
+          enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+          invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
+          features['numInvaders'] = len(invaders)
+
+          # i've stopped and I was moving down, so I should go up
           if first_recent == 0 and four_recent > 0:
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
             features['guardArea'] = guardArea
+            if len(invaders) > 0:
+              dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+              features['invaderDistance'] = min(dists)
+          # i've stopped and I was moving up, so I should go down
           elif first_recent == 0 and four_recent < 0:
             guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
             features['guardArea'] = guardArea
+            if len(invaders) > 0:
+              dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+              features['invaderDistance'] = min(dists)
         elif gameState.getAgentState(self.index).numCarrying >= 4:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, self.start)
@@ -268,6 +281,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     'reverse':-5,
     # 'avoidTheMiddle': 100,
     'confirmFood': -10,
+    'guardArea': -10,
+    'numInvaders': -10,
     'guardArea': -10
     }
 
