@@ -178,7 +178,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
     agents = self.getOpponents(gameState)
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-    print("this is from printing agents ", str(enemies))
+    # print("this is from printing agents ", str(enemies))
     for a in agents:
       #enemyPos = gameState.getAgentPosition(a)
 
