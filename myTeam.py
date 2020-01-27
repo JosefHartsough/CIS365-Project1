@@ -125,7 +125,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
-    
+
     if self.index == 1:
       print(str(features) + str(weights), file=sys.stderr)
 
@@ -164,7 +164,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
     foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)#self.getScore(successor)
-    
+
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
     if action == rev: features['reverse'] = 1
@@ -173,7 +173,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
     enemiesPo = [a for a in enemiesPo if a != None]
-    
+
 
 
     #this is the part where it goes straight to the middle food and then moves on.
@@ -190,8 +190,12 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       if len(foodList) > 0: # This should always be True,  but better safe than sorry
         if self.getScore(successor) >=1:
           myPos = successor.getAgentState(self.index).getPosition()
-          topGuardPoint = (19, 7)
-          bottomGuardPoint = (19, 1)
+          if self.red:
+            topGuardPoint = (12, 14)
+            bottomGuardPoint = (12, 7)
+          else:
+            topGuardPoint = (19, 7)
+            bottomGuardPoint = (19, 1)
           # distanceToTop = self.distancer.getDistance(myPos, topGuardPoint)
           # print("distance", distanceToTop)
           moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
@@ -212,15 +216,20 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           # i've stopped and I was moving down, so I should go up
           if first_recent == 0 and four_recent > 0:
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
-            print("guardArea11111111111", str(guardArea))
-            features['guardArea'] = float(10/guardArea)
+            if guardArea == 0: guardArea = 1 
+            print("guardArea", guardArea)
+            features['guardArea'] = 10/guardArea
+            print("features", features)
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
           # i've stopped and I was moving up, so I should go down
           elif first_recent == 0 and four_recent < 0:
             guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
-            features['guardArea'] = float(10/guardArea)
+            if guardArea == 0: guardArea = 1
+            print("guardArea", guardArea)
+            features['guardArea'] = 10/guardArea
+            print("features", guardArea)
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
@@ -228,7 +237,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, self.start)
           features['confirmFood'] = minDistance
-        else:      
+        else:
           if enemiesPo:
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
             print("distanceToEnemy", str(minDistEn))
@@ -249,7 +258,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           #         myPos = successor.getAgentState(self.index).getPosition()
           #         minD = min([self.getMazeDistance(myPos, en) for en in d])
           #         features['avoidTheMiddle'] = minD
-          
+
           #look for enemies and avoid if possible.
           distance_measure = 9999.0
           features['intowall'] = 0
@@ -282,7 +291,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           else:
             features['carry'] = 0
 
-    
+
 
     return features
 
@@ -299,7 +308,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     'confirmFood': -10,
     'guardArea': -10,
     'numInvaders': -500,
-    'carry': -1.6, 
+    'carry': -1.6,
     'intowall': 1,
     }
 
