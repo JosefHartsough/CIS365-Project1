@@ -218,6 +218,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
             if guardArea == 0: guardArea = 1
             # testing a commit to help a friend
+            # testing round 2
             print("guardArea", guardArea)
             features['guardArea'] = 10/guardArea
             print("features", features)
