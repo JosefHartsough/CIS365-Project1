@@ -216,7 +216,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           # i've stopped and I was moving down, so I should go up
           if first_recent == 0 and four_recent > 0:
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
-            if guardArea == 0: guardArea = 1 
+            if guardArea == 0: guardArea = 1
+            # testing a commit to help a friend
             print("guardArea", guardArea)
             features['guardArea'] = 10/guardArea
             print("features", features)
