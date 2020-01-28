@@ -199,6 +199,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
           invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
           features['numInvaders'] = len(invaders)
+          
+          if len(invaders) > 0:
+            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+            features['invaderDistance'] = 1000/min(dists)
 
           # i've stopped and I was moving down, so I should go up
           if first_recent == 0 and four_recent > 0:
