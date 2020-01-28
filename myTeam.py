@@ -87,22 +87,17 @@ class ReflexCaptureAgent(CaptureAgent):
 
     foodLeft = len(self.getFood(gameState).asList())
 
-    if foodLeft <= 2 or gameState.getAgentState(self.index).numCarrying > 5:
-      bestDist = 9999
-      for action in actions:
-        if len(remaining) == 2:
-          capsule = self.getCapsules(gameState)
-          dist = self.getMazeDistance(self.start,capsule)
-          print("self start", self.start)
-        else:
-          successor = self.getSuccessor(gameState, action)
-          pos2 = successor.getAgentPosition(self.index)
-          dist = self.getMazeDistance(self.start,pos2)
-          print("self start", self.start)
-          if dist < bestDist:
-            bestAction = action
-            bestDist = dist
-      return bestAction
+    # if foodLeft <= 2 or gameState.getAgentState(self.index).numCarrying > 5:
+    #   bestDist = 9999
+    #   for action in actions:
+    #     successor = self.getSuccessor(gameState, action)
+    #     pos2 = successor.getAgentPosition(self.index)
+    #     dist = self.getMazeDistance(self.start,pos2)
+    #     print("self start", self.start)
+    #     if dist < bestDist:
+    #       bestAction = action
+    #       bestDist = dist
+      # return bestAction
 
     return random.choice(bestActions)
 
@@ -173,37 +168,29 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
     enemiesPo = [a for a in enemiesPo if a != None]
+    print("enemiesPo", enemiesPo)
 
-
-
-    #this is the part where it goes straight to the middle food and then moves on.
-    middle_food = (14, 9) if not self.red else (17, 6)
+    # set team specific coordinates to go to
+    if self.red:
+      topGuardPoint = (12, 14)
+      bottomGuardPoint = (12, 7)
+      middle_food = (14, 9)
+    else:
+      topGuardPoint = (19, 7)
+      bottomGuardPoint = (19, 1)
+      middle_food = (17, 6)
     myPos = successor.getAgentState(self.index).getPosition()
     if len(self.observationHistory) > 10:
       moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
 
+      # this is the part where it goes straight to the middle food and then moves on.
     if middle_food in foodList:
-      # myPos = successor.getAgentState(self.index).getPosition()
       minDistance = self.getMazeDistance(myPos, middle_food)
       features['distanceToFood'] = minDistance
     else:
-      if len(foodList) > 0: # This should always be True,  but better safe than sorry
-        if self.getScore(successor) >=1:
-          myPos = successor.getAgentState(self.index).getPosition()
-          if self.red:
-            topGuardPoint = (12, 14)
-            bottomGuardPoint = (12, 7)
-          else:
-            topGuardPoint = (19, 7)
-            bottomGuardPoint = (19, 1)
-          # distanceToTop = self.distancer.getDistance(myPos, topGuardPoint)
-          # print("distance", distanceToTop)
+      if len(foodList) > 0: # This should always be True, but better safe than sorry
+        if self.getScore(successor) >= 1:
           moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
-          # print("moveHistory", moveHistory)
-          # print("moveHistory[0]", moveHistory[0])
-          # print("moveHistory[0][1]", moveHistory[0][1])
-          # print("moveHistory[6][1]", moveHistory[6][1])
-          # print("moveHistory[6][1] - moveHistory[0][1]", moveHistory[6][1] - moveHistory[0][1])
           first_recent = moveHistory[1][1] - moveHistory[0][1]
           second_recent = moveHistory[2][1] - moveHistory[1][1]
           third_recent = moveHistory[3][1] - moveHistory[2][1]
@@ -217,10 +204,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           if first_recent == 0 and four_recent > 0:
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
             if guardArea == 0: guardArea = 1
-            # testing a commit to help a friend
-            # testing round 2
             print("guardArea", guardArea)
-            features['guardArea'] = 10/guardArea
+            features['guardArea'] = guardArea
             print("features", features)
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
@@ -230,21 +215,21 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
             if guardArea == 0: guardArea = 1
             print("guardArea", guardArea)
-            features['guardArea'] = 10/guardArea
+            features['guardArea'] = guardArea
             print("features", guardArea)
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
         elif gameState.getAgentState(self.index).numCarrying >= 2:
           myPos = successor.getAgentState(self.index).getPosition()
-          minDistance = self.getMazeDistance(myPos, self.start)
+          minDistance = self.getMazeDistance(myPos, topGuardPoint)
           features['confirmFood'] = minDistance
         else:
           if enemiesPo:
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
             print("distanceToEnemy", str(minDistEn))
             features['fleeEnemy'] = minDistEn
-          #go get food = this is the most common state.
+          # go get food = this is the most common state.
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
           features['distanceToFood'] = minDistance
@@ -282,18 +267,13 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                       legal_actions == [rev, Directions.STOP]:
                   features['intowall'] = -1000000000
 
-          if scared:
-            features['fleeEnemy'] = -1.0/distance_measure
-
-          else:
-            features['fleeEnemy'] = 1/distance_measure
-
-          if gameState.getAgentState(self.index).numCarrying > 1:
-            features['carry'] = gameState.getAgentState(self.index).numCarrying * self.getMazeDistance(myPos, self.start)
-          else:
-            features['carry'] = 0
-
-
+          # if scared:
+          #   features['fleeEnemy'] = -1.0/distance_measure
+          #
+          # else:
+          #   features['fleeEnemy'] = 1/distance_measure
+          features['fleeEnemy'] = -1.0/distance_measure if scared else 1/distance_measure
+          print("features[fleeEnemy]", features['fleeEnemy'])
 
     return features
 
