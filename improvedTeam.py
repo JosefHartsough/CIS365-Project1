@@ -77,21 +77,12 @@ class ReflexCaptureAgent(CaptureAgent):
     remaining = gameState.getCapsules()
 
     capPos = self.getCapsules(gameState)
-    print("this is the location of the capsule!!!!!!!!", str(capPos))
-    print("this is the number of remaining capsule#########", str(remaining))
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
     values = [self.evaluate(gameState, a) for a in actions]
-    if self.index == 1:
-      print(values, file=sys.stderr)
-      # print(self.getPreviousObservation(), file=sys.stderr)
-
-    # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-    # if self.index == 1:
-    #   print(bestActions, file=sys.stderr)
 
     foodLeft = len(self.getFood(gameState).asList())
 
@@ -131,10 +122,6 @@ class ReflexCaptureAgent(CaptureAgent):
 
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
-
-    if self.index == 1:
-      print(str(features) + str(weights), file=sys.stderr)
-      # print(gameState.getAgentState(self.index)) # Print out a text representation of the world.
 
     return features * weights
 
@@ -188,7 +175,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(2,10)]
         d = [self.getMazeDistance(enemyPos, (15,8)) for enemyPos in moveHistory]
         avg = sum(d) / len(d)
-        print("this is the average for the number of distance from the centre position", str(avg))
         features['avoidTheMiddle'] = avg
 
     #this is the part where it goes straight to the middle food and then moves on.

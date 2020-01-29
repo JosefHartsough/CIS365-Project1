@@ -53,18 +53,6 @@ class ReflexCaptureAgent(CaptureAgent):
 
     foodLeft = len(self.getFood(gameState).asList())
 
-    # if foodLeft <= 2 or gameState.getAgentState(self.index).numCarrying > 5:
-    #   bestDist = 9999
-    #   for action in actions:
-    #     successor = self.getSuccessor(gameState, action)
-    #     pos2 = successor.getAgentPosition(self.index)
-    #     dist = self.getMazeDistance(self.start,pos2)
-    #     print("self start", self.start)
-    #     if dist < bestDist:
-    #       bestAction = action
-    #       bestDist = dist
-      # return bestAction
-
     return random.choice(bestActions)
 
   def getSuccessor(self, gameState, action):
@@ -132,10 +120,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)
 
-    if action == Directions.STOP: features['stop'] = 1
-    rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
-    if action == rev: features['reverse'] = 1
-
     agents = self.getOpponents(gameState)
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
@@ -159,8 +143,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     # If the obersvation history is greater than 10, start to record the move
     # history so that we can use it later when the offensive agent starts to
     # play defense.
-    # if len(self.observationHistory) > 10: # # TODO: check if this move history or the other move history should be used.
-    #   moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
 
     # If the food in the middle is still there, go for that above all else. Once
     # we either eat it and return it or eat it and then die and the food respawns,
@@ -202,7 +184,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             # we were on top of the point we were trying to get to then it would
             # return 0 and that caused some issues. So we decided to just guard
             # against that and make guardArea 1 if it was 0.
-            if guardArea == 0: guardArea = 1
             features['guardArea'] = guardArea
 
             # now that we are in guard mode, attack if they come to our side
@@ -215,7 +196,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
 
             # same issue as before with guardArea
-            if guardArea == 0: guardArea = 1
             features['guardArea'] = guardArea
 
             # again, attack if people are on our side.
@@ -238,7 +218,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           # food is there, we should still try to avoid others.
           if enemiesPo:
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
-            print("distanceToEnemy", str(minDistEn))
             features['fleeEnemy'] = minDistEn
 
           # If we are in the clear, go get the food!
@@ -246,61 +225,17 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
           features['distanceToFood'] = minDistance
 
-          #look for enemies and avoid if possible.
-          # TODO: Not 100% if this is still needed as we check for enemies earlier.
-          # this seems to be code yeeted in from Loki and I leave it to Jemima to
-          # determine what we woudl like to do with this and how the 'intowall'
-          # variable should be handled as we are already guarding areas in other
-          # if statements.
-          distance_measure = 9999.0
-          features['intowall'] = 0
-          scared = False
-          if gameState.getAgentState(self.index).isPacman:
-            opp_fut_state = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-            chasers = [p for p in opp_fut_state if p.getPosition() != None and not p.isPacman]
-            features['numEnemies'] = len(chasers)
-            if len(chasers) > 0:
-              scared = chasers[0].scaredTimer > 0
-              distance_measure = min([float(self.getMazeDistance(myPos, c.getPosition())) for c in chasers])
-
-              legal_actions = successor.getLegalActions(self.index)
-              if action == Directions.STOP:
-                  # TODO: same number as below????????
-                  features['intowall'] = -1000000000
-
-              # TODO: also this reverse direction i think is how you wanted to be going back and forth between
-              # places right?? Well in the if statements above it is already doing that. I know that I may
-              # have said it over discord, but I will repeat it here so that it is written down.
-              # When I first made the "guardArea" garbage and made our agent guard places, I was always just
-              # making him on the red team. It wasn't until later that I made it work for both colors and I think
-              # what happened is Jemima was using blue team and saw that the functionality didn't work and implemented this.
-              # When this is left commented in, sometimes our man is sporadic. Idc which one we keep, but we probably don't
-              # need to keep both.
-              rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
-              if legal_actions == [Directions.STOP] or legal_actions == [Directions.STOP, rev] or \
-                      legal_actions == [rev, Directions.STOP]:
-                  features['intowall'] = -1000000000
-
-          # if the enemy has eaten the capsule, we should run
-          features['fleeEnemy'] = -1.0/distance_measure if scared else 1/distance_measure
-          print("features[fleeEnemy]", features['fleeEnemy'])
-
     return features
 
   def getWeights(self, gameState, action):
     return {
       'successorScore': 100,
-      'distanceToFood': -10,
-      'flee': -50,
-      'ghost': -200,
-      'stop': -10,
-      'reverse':-5,
-      'avoidTheMiddle': -50,
-      'confirmFood': -10,
-      'guardArea': -10,
+      'distanceToFood': -1,
+      'fleeEnemy': -5,
+      'confirmFood': -100,
+      'guardArea': -1,
       'numInvaders': -500,
-      'carry': -1.6,
-      'intowall': 1,
+      'invaderDistance': -500
     }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
@@ -362,8 +297,8 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     return {
         'numInvaders': -1000,
         'onDefense': 5000,
-        'invaderDistance': -10,
+        'invaderDistance': -1000,
         'stop': -100,
         'reverse': -2,
-        'byCapsule':-2
+        'byCapsule': -2
       }
