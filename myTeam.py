@@ -1,24 +1,3 @@
-# baselineTeam.py
-# ---------------
-# Licensing Information:  You are free to use or extend these projects for
-# educational purposes provided that (1) you do not distribute or publish
-# solutions, (2) you retain this notice, and (3) you provide clear
-# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-#
-# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
-# The core projects and autograders were primarily created by John DeNero
-# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# Student side autograding was added by Brad Miller, Nick Hay, and
-# Pieter Abbeel (pabbeel@cs.berkeley.edu).
-
-
-# baselineTeam.py
-# ---------------
-# Licensing Information: Please do not distribute or publish solutions to this
-# project. You are free to use and extend these projects for educational
-# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
-# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 from __future__ import print_function
 from captureAgents import CaptureAgent
 import distanceCalculator
@@ -56,34 +35,21 @@ def createTeam(firstIndex, secondIndex, isRed,
 
 class ReflexCaptureAgent(CaptureAgent):
   """
-  A base class for reflex agents that chooses score-maximizing actions
+  A base class for our agents to inherit
   """
 
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
 
-  # def getCapsules(self, gameState):
-  #   if self.red:
-  #     return gameState.getBlueCapsules()
-  #   else:
-  #     return gameState.getRedCapsules()
-
   def chooseAction(self, gameState):
     """
     Picks among the actions with the highest Q(s,a).
     """
     actions = gameState.getLegalActions(self.index)
-    print("legal actions", actions)
-
-
     values = [self.evaluate(gameState, a) for a in actions]
-    print("VALUES", str(values))
-
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-
-    print("BEST ACTIONS", str(bestActions))
 
     foodLeft = len(self.getFood(gameState).asList())
 
@@ -121,10 +87,6 @@ class ReflexCaptureAgent(CaptureAgent):
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
 
-    if self.index == 1:
-      print(str(features) + str(weights), file=sys.stderr)
-
-
     return features * weights
 
   def getFeatures(self, gameState, action):
@@ -146,9 +108,19 @@ class ReflexCaptureAgent(CaptureAgent):
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
   """
-  A reflex agent that seeks food. This is an agent
-  we give you to get an idea of what an offensive agent might look like,
-  but it is by no means the best or only way to build an offensive agent.
+  A reflex agent that seeks food. The goal of the offensive agent is to go out
+  and initially get food as quick as possible. It looks specifically at getting
+  the closet possible food, that being the food right across the center line. It
+  then tries to get one other piece of food if it can and then it will return those
+  home. Once we are winning, the offensive agent now will play defense and guard
+  the lane that is further from the other two. For example, on Red Team, the top
+  lane is significantly further away from the middle and bottom lanes. So the
+  defensive agent is guarding that bottom one and the offensive agent should
+  guard that top lane. If we already got food, we can guess that one of the
+  opposing team's agents is also on our side and so if we just guard the exit
+  then that other team's agent will eventually have to come towards us. Once an
+  enemy comes toward us, then we will go after them. If at any point we start to
+  lose, the offensive agent will also try to go get more food.
   """
   def getFeatures(self, gameState, action):
     features = util.Counter()
@@ -158,7 +130,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     myPos = myState.getPosition()
 
     foodList = self.getFood(successor).asList()
-    features['successorScore'] = -len(foodList)#self.getScore(successor)
+    features['successorScore'] = -len(foodList)
 
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
@@ -168,9 +140,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
     enemiesPo = [a for a in enemiesPo if a != None]
-    print("enemiesPo", enemiesPo)
 
-    # set team specific coordinates to go to
+    # set team specific coordinates to go to. The guard points are where the
+    # offensive agent should go between and the middle_food variable is the
+    # location of the food pellet in the middle.
     if self.red:
       topGuardPoint = (12, 14)
       bottomGuardPoint = (12, 7)
@@ -179,78 +152,106 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       topGuardPoint = (19, 7)
       bottomGuardPoint = (19, 1)
       middle_food = (17, 6)
-    myPos = successor.getAgentState(self.index).getPosition()
-    if len(self.observationHistory) > 10:
-      moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
 
-      # this is the part where it goes straight to the middle food and then moves on.
+    # get my current position. This variable is used often to determine where to go
+    myPos = successor.getAgentState(self.index).getPosition()
+
+    # If the obersvation history is greater than 10, start to record the move
+    # history so that we can use it later when the offensive agent starts to
+    # play defense.
+    # if len(self.observationHistory) > 10: # # TODO: check if this move history or the other move history should be used.
+    #   moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
+
+    # If the food in the middle is still there, go for that above all else. Once
+    # we either eat it and return it or eat it and then die and the food respawns,
+    # we focus on something else.
     if middle_food in foodList:
       minDistance = self.getMazeDistance(myPos, middle_food)
       features['distanceToFood'] = minDistance
     else:
-      if len(foodList) > 0: # This should always be True, but better safe than sorry
+      # This should always be True, but better safe than sorry
+      if len(foodList) > 0:
+
+        # The first thing we want to do is check if we are winning. If we know
+        # that we are winning, we want to play defense and guard the lane that
+        # is by itself (the defensive agent should be guarding the other two lanes)
         if self.getScore(successor) >= 1:
           moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
-          first_recent = moveHistory[1][1] - moveHistory[0][1]
-          second_recent = moveHistory[2][1] - moveHistory[1][1]
-          third_recent = moveHistory[3][1] - moveHistory[2][1]
-          four_recent = moveHistory[4][1] - moveHistory[3][1]
+
+          # For the sake of derivates and determing the change in direction,
+          # we look to the move most recently did and then the move we did
+          # four turns ago.
+          one_move_ago = moveHistory[1][1] - moveHistory[0][1]
+          four_moves_ago = moveHistory[4][1] - moveHistory[3][1]
+
           # Computes distance to invaders we can see
           enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
           invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
           features['numInvaders'] = len(invaders)
-          
+
+          # if there are invaders, we should go attack them.
           if len(invaders) > 0:
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = 1000/min(dists)
 
-          # i've stopped and I was moving down, so I should go up
-          if first_recent == 0 and four_recent > 0:
+          # When stopped and was moving down, now go up
+          if one_move_ago == 0 and four_moves_ago > 0:
             guardArea = self.getMazeDistance(myPos, topGuardPoint)
+
+            # there seemed to be an issue when using getMazeDistance() that if
+            # we were on top of the point we were trying to get to then it would
+            # return 0 and that caused some issues. So we decided to just guard
+            # against that and make guardArea 1 if it was 0.
             if guardArea == 0: guardArea = 1
-            print("guardArea", guardArea)
             features['guardArea'] = guardArea
-            print("features", features)
+
+            # now that we are in guard mode, attack if they come to our side
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
-          # i've stopped and I was moving up, so I should go down
-          elif first_recent == 0 and four_recent < 0:
+
+          # When stopped and was moving up, now go down
+          elif one_move_ago == 0 and four_moves_ago < 0:
             guardArea = self.getMazeDistance(myPos, bottomGuardPoint)
+
+            # same issue as before with guardArea
             if guardArea == 0: guardArea = 1
-            print("guardArea", guardArea)
             features['guardArea'] = guardArea
-            print("features", guardArea)
+
+            # again, attack if people are on our side.
             if len(invaders) > 0:
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
+
+        # make sure that if we are carrying two or more food pellets, return home
+        # to collect those points.
         elif gameState.getAgentState(self.index).numCarrying >= 2:
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = self.getMazeDistance(myPos, topGuardPoint)
           features['confirmFood'] = minDistance
+
+        # if we are not winning and we are not carrying food, we need to do many things
         else:
+
+          # first we want to see roughly where the enemies are. If they are close
+          # to where we are trying to go, we should flee. So even if the middle
+          # food is there, we should still try to avoid others.
           if enemiesPo:
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
             print("distanceToEnemy", str(minDistEn))
             features['fleeEnemy'] = minDistEn
-          # go get food = this is the most common state.
+
+          # If we are in the clear, go get the food!
           myPos = successor.getAgentState(self.index).getPosition()
           minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
           features['distanceToFood'] = minDistance
-          #check if they are patrolling the middle and looks to avoid it.
-          # d = []
-          # for a in agents:
-          #     if len(self.observationHistory) > 8:
-          #       moveHistory = [self.observationHistory[-1*i].getAgentPosition(a) for i in range(2, 6)]
-          #       for enemyPos in moveHistory:
-          #         if enemyPos != None:
-          #           d.append(enemyPos)
-          #       if d:
-          #         myPos = successor.getAgentState(self.index).getPosition()
-          #         minD = min([self.getMazeDistance(myPos, en) for en in d])
-          #         features['avoidTheMiddle'] = minD
 
           #look for enemies and avoid if possible.
+          # TODO: Not 100% if this is still needed as we check for enemies earlier.
+          # this seems to be code yeeted in from Loki and I leave it to Jemima to
+          # determine what we woudl like to do with this and how the 'intowall'
+          # variable should be handled as we are already guarding areas in other
+          # if statements.
           distance_measure = 9999.0
           features['intowall'] = 0
           scared = False
@@ -264,53 +265,58 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
               legal_actions = successor.getLegalActions(self.index)
               if action == Directions.STOP:
+                  # TODO: same number as below????????
                   features['intowall'] = -1000000000
 
+              # TODO: also this reverse direction i think is how you wanted to be going back and forth between
+              # places right?? Well in the if statements above it is already doing that. I know that I may
+              # have said it over discord, but I will repeat it here so that it is written down.
+              # When I first made the "guardArea" garbage and made our agent guard places, I was always just
+              # making him on the red team. It wasn't until later that I made it work for both colors and I think
+              # what happened is Jemima was using blue team and saw that the functionality didn't work and implemented this.
+              # When this is left commented in, sometimes our man is sporadic. Idc which one we keep, but we probably don't
+              # need to keep both.
               rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
               if legal_actions == [Directions.STOP] or legal_actions == [Directions.STOP, rev] or \
                       legal_actions == [rev, Directions.STOP]:
                   features['intowall'] = -1000000000
 
-          # if scared:
-          #   features['fleeEnemy'] = -1.0/distance_measure
-          #
-          # else:
-          #   features['fleeEnemy'] = 1/distance_measure
+          # if the enemy has eaten the capsule, we should run
           features['fleeEnemy'] = -1.0/distance_measure if scared else 1/distance_measure
           print("features[fleeEnemy]", features['fleeEnemy'])
 
     return features
 
-
   def getWeights(self, gameState, action):
     return {
-    'successorScore': 100,
-    'distanceToFood': -10,
-    'flee': -50,
-    'ghost': -200,
-    'stop': -10,
-    'reverse':-5,
-    'avoidTheMiddle': -50,
-    'confirmFood': -10,
-    'guardArea': -10,
-    'numInvaders': -500,
-    'carry': -1.6,
-    'intowall': 1,
+      'successorScore': 100,
+      'distanceToFood': -10,
+      'flee': -50,
+      'ghost': -200,
+      'stop': -10,
+      'reverse':-5,
+      'avoidTheMiddle': -50,
+      'confirmFood': -10,
+      'guardArea': -10,
+      'numInvaders': -500,
+      'carry': -1.6,
+      'intowall': 1,
     }
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
   """
-  A reflex agent that keeps its side Pacman-free. Again,
-  this is to give you an idea of what a defensive agent
-  could be like.  It is not the best or only way to make
-  such an agent.
+  A defensive agent that will start the game protecting the capsule.
+  If the capsule gets eaten, will try to defend our side from enemy ghosts.
   """
 
   def getFeatures(self, gameState, action):
     features = util.Counter()
     successor = self.getSuccessor(gameState, action)
 
+    # Assigns variable myState to our agents state
     myState = successor.getAgentState(self.index)
+
+    # Assigns variable myPos to our current position
     myPos = myState.getPosition()
 
     # Computes whether we're on defense (1) or offense (0)
@@ -324,20 +330,27 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     if len(invaders) > 0:
       dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
       features['invaderDistance'] = min(dists)
+      # TODO: This bad boy is commented out, not sure why or if we should just remove it?
       #features['reverse'] = -1
     else:
       foodList = self.getFoodYouAreDefending(successor).asList()
       dist = min([self.getMazeDistance(myPos, food) for food in foodList])
       features['byFood'] = dist
+
+      # At the start, will rush to the capsule and try to defend. If capsule
+      # gets eaten, the agent does its very best to attack the enemy ghosts
       capsules = self.getCapsulesYouAreDefending(successor)
       if len(capsules) > 0:
           features['byCapsule'] = min([self.getMazeDistance(myPos, capsule) for capsule in capsules])
+      else:
+          features['numInvaders'] = len(invaders)
       team = [successor.getAgentState(i) for i in self.getTeam(successor) if i != self.index]
       defenders = [a for a in team if not a.isPacman and a.getPosition() != None]
       if len(defenders) > 0:
           ally_dist = min([self.getMazeDistance(myPos, ally.getPosition()) for ally in defenders])
+          # TODO: lololol where did we get this stupidly small decimal and why are we dividing it by 1
+          # to get a bigger value?? could just multiply ally_dist by something big, but that's just me *insert winky face*
           features['byAlly'] = 1.0/(ally_dist+.000000001)
-
 
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
@@ -347,10 +360,10 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
   def getWeights(self, gameState, action):
     return {
-      'numInvaders': -1000,
-      'onDefense': 5000,
-      'invaderDistance': -10,
-      'stop': -100,
-      'reverse': -2,
-      'byCapsule':-2
+        'numInvaders': -1000,
+        'onDefense': 5000,
+        'invaderDistance': -10,
+        'stop': -100,
+        'reverse': -2,
+        'byCapsule':-2
       }
