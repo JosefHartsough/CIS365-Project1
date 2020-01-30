@@ -266,7 +266,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           minDistance = self.getMazeDistance(myPos, bottomGuardPoint)
           features['confirmFood'] = minDistance
 
-        # if we are not winning and we are not carrying food, we need to do attack
+        # if we are not winning and we are not carrying food, we need to attack
         else:
 
           # first we want to see roughly where the enemies are. If they are close
