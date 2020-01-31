@@ -162,10 +162,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     # so that he can play defense if we are winning.
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
-    enemiesPo = [a for a in enemiesPo if (enemies[0].isPacman or enemies[1].isPacman) and a != None]
-    # enemiesPo = [a for a in enemies if not a.isPacman and a.getPosition() != None]
-
-    # enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+    enemiesPo = [a for a in enemiesPo if (not enemies[0].isPacman or not enemies[1].isPacman) and a != None and myState.isPacman]
 
     # set team specific coordinates to go to. The guard points are where the
     # offensive agent should go between and the middle_food variable is the
@@ -216,7 +213,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         # play defense. We shouldn't hit this block of code before 10 moves, but
         # it is still safe to account for the history actually being there before
         # we try to access it.
-        elif self.getScore(successor) > 1 and len(self.observationHistory) > 10:
+        elif self.getScore(successor) > 0 and len(self.observationHistory) > 10:
 
           # Now that we have scored, we want to tell the offensive agent to play
           # defense and so we call the setter to change the weights around.
@@ -225,9 +222,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
           # start keeping track of the history of the moves so we can determine
           # where to go next.
           moveHistory = [self.observationHistory[-1*i].getAgentState(self.index).getPosition() for i in range(1,10)]
-
-          # features['onDefense'] = 1
-          # if myState.isPacman: features['onDefense'] = 0
 
           # For the sake of derivates and determing the change in direction,
           # we look to the move most recently did and then the move we did
@@ -278,24 +272,33 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
 
-
-
         # if we are not winning and we are not carrying food, we need to attack
         else:
-          # enemiesPo = [10, 10]
-          # for enemy in enemies:
-          #   if not enemy.isPacman:
-          #     print("here")
-
 
           # first we want to see roughly where the enemies are. If they are close
           # to where we are trying to go, we should flee. So even if the middle
           # food is there, we should still try to avoid others.
           if len(enemiesPo) > 0:
-            print("here")
-            print("enemiesPo \n", enemiesPo)
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
             features['fleeEnemy'] = minDistEn
+
+            # One thing we want to do is that if we are being chased and we have
+            # any food pellets at all, we should try to confirm them. Our natural
+            # state is to keep playing offense until we have 2 food pellets, but
+            # we found that sometimes it is better to just confirm the food if
+            # we are being chased so that we can at least get some score. On top
+            # of that, when we are being chased we often continue to try to get
+            # food while running away from the enemy and that can put us into a
+            # corner to get eaten. So confirming the food also helps us to stay
+            # alive.
+            if gameState.getAgentState(self.index).numCarrying >= 1:
+              myPos = successor.getAgentState(self.index).getPosition()
+              if self.red:
+                minDistance = self.getMazeDistance(myPos, bottomGuardPoint)
+              else:
+                minDistance = self.getMazeDistance(myPos, topGuardPoint)
+
+              features['confirmFood'] = minDistance * 10
 
           # If we are in the clear, go get the food!
           myPos = successor.getAgentState(self.index).getPosition()
@@ -332,7 +335,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       return {
         'successorScore': 100,
         'distanceToFood': -1,
-        'fleeEnemy': 10,
+        'fleeEnemy': 5,
         'confirmFood': -1,
       }
 
