@@ -162,7 +162,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     # so that he can play defense if we are winning.
     enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
     enemiesPo = [successor.getAgentPosition(i) for i in self.getOpponents(successor)]
-    enemiesPo = [a for a in enemiesPo if a != None]
+    enemiesPo = [a for a in enemiesPo if (enemies[0].isPacman or enemies[1].isPacman) and a != None]
+    # enemiesPo = [a for a in enemies if not a.isPacman and a.getPosition() != None]
+
+    # enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
 
     # set team specific coordinates to go to. The guard points are where the
     # offensive agent should go between and the middle_food variable is the
@@ -189,15 +192,31 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
       # This should always be True, but better safe than sorry
       if len(foodList) > 0:
 
-        # The first thing we want to do is check if we are winning. If we know
-        # that we are winning, we want to play defense and guard the lane that
-        # is by itself (the defensive agent should be guarding the other two lanes)
+        # The first thing we want to do is check how many pellets we are carrying.
+        # We initially did not plan for this to be checked first, but there appears
+        # to be issues with the game engine where it thinks that the variable
+        # self.getScore(successor) has changed the moment before we cross the
+        # boundary. Our agent would get right next to the edge and then not actually
+        # cross it and we think the order of the if statements caused that to action.
+        # Therefore, we first make sure that if we are carrying two or more food
+        # pellets, returning home to collect those points takes priority.
+        if gameState.getAgentState(self.index).numCarrying >= 2:
+          myPos = successor.getAgentState(self.index).getPosition()
+          if self.red:
+            minDistance = self.getMazeDistance(myPos, bottomGuardPoint)
+          else:
+            minDistance = self.getMazeDistance(myPos, topGuardPoint)
+
+          features['confirmFood'] = minDistance
+
+        # If we know that we are winning, we want to play defense and guard the lane that
+        # is by itself (the defensive agent should be guarding the other two lanes).
         # Also, if the obersvation history is greater than 10, start to record the move
         # history so that we can use it later when the offensive agent starts to
         # play defense. We shouldn't hit this block of code before 10 moves, but
         # it is still safe to account for the history actually being there before
         # we try to access it.
-        if self.getScore(successor) > 1 and len(self.observationHistory) > 10:
+        elif self.getScore(successor) > 1 and len(self.observationHistory) > 10:
 
           # Now that we have scored, we want to tell the offensive agent to play
           # defense and so we call the setter to change the weights around.
@@ -259,20 +278,22 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
               dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
               features['invaderDistance'] = min(dists)
 
-        # make sure that if we are carrying two or more food pellets, return home
-        # to collect those points.
-        elif gameState.getAgentState(self.index).numCarrying >= 2:
-          myPos = successor.getAgentState(self.index).getPosition()
-          minDistance = self.getMazeDistance(myPos, bottomGuardPoint)
-          features['confirmFood'] = minDistance
+
 
         # if we are not winning and we are not carrying food, we need to attack
         else:
+          # enemiesPo = [10, 10]
+          # for enemy in enemies:
+          #   if not enemy.isPacman:
+          #     print("here")
+
 
           # first we want to see roughly where the enemies are. If they are close
           # to where we are trying to go, we should flee. So even if the middle
           # food is there, we should still try to avoid others.
-          if enemiesPo:
+          if len(enemiesPo) > 0:
+            print("here")
+            print("enemiesPo \n", enemiesPo)
             minDistEn = min([self.getMazeDistance(myPos, invader) for invader in enemiesPo])
             features['fleeEnemy'] = minDistEn
 
